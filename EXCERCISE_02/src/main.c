@@ -46,37 +46,46 @@
     #define __NO_RETURN
 #endif
 
-
-void delay(volatile uint32_t count) {
-    while(count--) {
-        __asm("nop");   // no operation
-    }
+void delay (volatile int cycles)
+{
+	while(cycles--);
 }
 
-
-void blinkled(GPIO_Type *gpio, int pin_num)
+void blink(GPIO_Type * GPIOn, uint8_t u8PinNumber, uint32_t time)
 {
-	gpio->PTOR = (1 << pin_num);
-	delay(500);
-	gpio->PTOR = (1 << pin_num);
+	GPIOn->PTOR |= 1 << u8PinNumber;
+	delay(time);
+
+	GPIOn->PTOR |= 1 << u8PinNumber;
 }
 
 int main(void) {
+    IP_PCC->PCCn[PCC_PORTD_INDEX] |= PCC_PCCn_CGC_MASK;
+    IP_PORTD->PCR[0] |= PORT_PCR_MUX(0xb001);
+    IP_PORTD->PCR[15] |= PORT_PCR_MUX(0xb001);
+    IP_PORTD->PCR[16] |= PORT_PCR_MUX(0xb001);
 
-	IP_PCC->PCCn[PCC_PORTD_INDEX] |= PCC_PCCn_CGC_MASK;
+    IP_PTD->PDDR |= 1<<0;
+    IP_PTD->PDDR |= 1<<15;
+    IP_PTD->PDDR |= 1<<16;
+    IP_PTD->PSOR |= 1<<0;
+    IP_PTD->PSOR |= 1<<15;
+    IP_PTD->PSOR |= 1<<16;
 
-	IP_PORTD->PCR[5]|= PORT_PCR_MUX(1);	// set pin 0 GPIO
-	IP_PORTD->PCR[6]|= PORT_PCR_MUX(1);	// set pin 1 GPIO
-	IP_PORTD->PCR[7]|= PORT_PCR_MUX(1);	// set pin 2 GPIO
+    while(1)
+    {
+    	blink(IP_PTD, 0, 3000000);
 
-	IP_PTD->PDDR |= (1 << 5) | (1 << 6) | (1<<7); 	// set pin 0,1,2 is output
+    	blink(IP_PTD, 15, 3000000);
 
-
-	blinkled(IP_PTD, 5);
-	blinkled(IP_PTD, 6);
-	blinkled(IP_PTD, 7);
-
+    	blink(IP_PTD, 16, 3000000);
+    }
     /* to avoid the warning message for GHS and IAR: statement is unreachable*/
     __NO_RETURN
     return 0;
+}
+
+__INTERRUPT_SVC void SVC_Handler() {
+//    accumulator += counter;
+//    printf("counter is 0x%08x, accumulator is 0x%08x\n", counter, accumulator);
 }
