@@ -75,7 +75,7 @@ static int32_t ARM_GPIO_Setup(ARM_GPIO_Pin_t pin, ARM_GPIO_SignalEvent_t cb_even
         port_callbacks[port] = cb_event;
         DRIVER_PORT_RegisterCallback(port, gpio_port_forward_event);
 
-        );
+
     }
 
     /* store mapping physical->logical pin so ISR can give logical pin to callback */
@@ -189,7 +189,7 @@ void Button_Event(ARM_GPIO_Pin_t pin, uint32_t event) {
 }
 
 /* Driver access structure (CMSIS-like) */
-ARM_DRIVER_GPIO Driver_GPIO0 = {
+const ARM_DRIVER_GPIO Driver_GPIO0 = {
     ARM_GPIO_Setup,
     ARM_GPIO_SetDirection,
     ARM_GPIO_SetOutputMode,

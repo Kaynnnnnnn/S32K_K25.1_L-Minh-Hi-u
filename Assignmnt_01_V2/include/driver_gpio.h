@@ -2,7 +2,7 @@
 #define DRIVER_GPIO_H_
 
 #include "driver_common.h"
-#include "driver_port.h"   /* chỉ include, không định nghĩa lại */
+#include "driver_port.h"
 
 #define ENABLE   1
 #define DISABLE  0
@@ -49,6 +49,10 @@ typedef enum {
 } ARM_GPIO_EVENT_TRIGGER;
 
 #define ARM_GPIO_ERROR_PIN  (ARM_DRIVER_ERROR_SPECIFIC - 1)
+/* GPIO event masks (for ARM_GPIO_SignalEvent callback) */
+#define ARM_GPIO_EVENT_RISING_EDGE   (1UL << 0)  /* Rising-edge detected  */
+#define ARM_GPIO_EVENT_FALLING_EDGE  (1UL << 1)  /* Falling-edge detected */
+#define ARM_GPIO_EVENT_EITHER_EDGE   (1UL << 2)  /* Either edge detected   */
 
 typedef void (*ARM_GPIO_SignalEvent_t) (ARM_GPIO_Pin_t pin, uint32_t event);
 void Button_Event (ARM_GPIO_Pin_t pin, uint32_t event);
@@ -62,5 +66,7 @@ typedef struct _ARM_DRIVER_GPIO {
   void     (*SetOutput)(ARM_GPIO_Pin_t pin, uint32_t val);
   uint32_t (*GetInput)(ARM_GPIO_Pin_t pin);
 } const ARM_DRIVER_GPIO;
+/* Export driver instance (đảm bảo định nghĩa ở driver_gpio.c là `const`) */
+extern const ARM_DRIVER_GPIO Driver_GPIO0;
 
 #endif /* DRIVER_GPIO_H_ */

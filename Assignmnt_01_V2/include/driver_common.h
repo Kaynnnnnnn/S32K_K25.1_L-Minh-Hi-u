@@ -4,12 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#ifndef DRIVER_PORT_H_
-#define DRIVER_PORT_H_
-
-// Toàn bộ nội dung driver_port.h ở đây
-
-#endif /* DRIVER_PORT_H_ */
 
 #define ARM_DRIVER_VERSION_MAJOR_MINOR(major,minor) (((major) << 8) | (minor))
 
