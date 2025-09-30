@@ -1,90 +1,40 @@
-/*
- * main.c
- * Ví dụ sử dụng driver_gpio / driver_port
- *
- * Mục tiêu:
- *  - Cấu hình BUTTON1, BUTTON2 là input với pull-up và interrupt on falling edge
- *  - Cấu hình LED_RED, LED_GREEN là output
- *  - Đăng ký callback Button_Event để xử lý khi nút được nhấn
- *
- * Lưu ý:
- *  - Driver_GPIO0, Button_Event, và các định nghĩa BUTTON1/LED_RED/... nằm trong
- *    driver_gpio.h / driver_gpio.c như bạn đã cung cấp.
- *  - Nếu cần khởi tạo hệ thống (SystemInit) hoặc clock, thêm các gọi thích hợp
- *    trước khi sử dụng driver.
- */
-
-#include <stdint.h>
-#include <stdbool.h>
 #include "driver_gpio.h"
-#include "driver_port.h" /* chỉ để chắc có các kiểu/macro nếu cần */
+#include "S32K144.h"
 
-/* Độ trễ đơn giản (busy-wait). Thay bằng HAL/Systick nếu có. */
-static void delay_ms(uint32_t ms) {
-    volatile uint32_t outer, inner;
-    while (ms--) {
-        for (outer = 0; outer < 1000u; ++outer) {
-            /* vòng NOP để tiêu tốn thời gian; tùy CPU tốc độ, giá trị này cần hiệu chỉnh */
-            for (inner = 0; inner < 50u; ++inner) {
-                __asm volatile ("nop");
-            }
-        }
-    }
-}
+/* External reference to GPIO driver */
+extern ARM_DRIVER_GPIO Driver_GPIO0;
 
-int main(void) {
-    int32_t res;
+/* Main application entry point */
+int main(void)
+{
+    /* Configure Red LED pin as output */
+    Driver_GPIO0.Setup(LED_RED, NULL);
+    Driver_GPIO0.SetDirection(LED_RED, ARM_GPIO_OUTPUT);
+    Driver_GPIO0.SetOutput(LED_RED, 0);   /* Start with LED OFF */
 
-    /* --- Cấu hình LED làm output --- */
-    res = Driver_GPIO0.SetDirection(LED_RED, ARM_GPIO_OUTPUT);
-    if (res != ARM_DRIVER_OK) {
-        /* Nếu lỗi, dừng ở đây (có thể thay bằng báo lỗi khác) */
-        while (1) { __asm volatile("wfi"); }
-    }
+    /* Configure Green LED pin as output */
+    Driver_GPIO0.Setup(LED_GREEN, NULL);
+    Driver_GPIO0.SetDirection(LED_GREEN, ARM_GPIO_OUTPUT);
+    Driver_GPIO0.SetOutput(LED_GREEN, 0); /* Start with LED OFF */
 
-    res = Driver_GPIO0.SetDirection(LED_GREEN, ARM_GPIO_OUTPUT);
-    if (res != ARM_DRIVER_OK) {
-        while (1) { __asm volatile("wfi"); }
-    }
+    /* Configure Button 1 as input with pull-up resistor and falling edge trigger */
+    Driver_GPIO0.Setup(BUTTON1, Button_Event);
+    Driver_GPIO0.SetDirection(BUTTON1, ARM_GPIO_INPUT);
+    Driver_GPIO0.SetPullResistor(BUTTON1, ARM_GPIO_PULL_UP);
+    Driver_GPIO0.SetEventTrigger(BUTTON1, ARM_GPIO_TRIGGER_FALLING_EDGE);
 
-    /* Tắt LED ban đầu (giả sử active high) */
-    Driver_GPIO0.SetOutput(LED_RED, 0);
-    Driver_GPIO0.SetOutput(LED_GREEN, 0);
+    /* Configure Button 2 as input with pull-up resistor and falling edge trigger */
+    Driver_GPIO0.Setup(BUTTON2, Button_Event);
+    Driver_GPIO0.SetDirection(BUTTON2, ARM_GPIO_INPUT);
+    Driver_GPIO0.SetPullResistor(BUTTON2, ARM_GPIO_PULL_UP);
+    Driver_GPIO0.SetEventTrigger(BUTTON2, ARM_GPIO_TRIGGER_FALLING_EDGE);
 
-    /* --- Cấu hình nút làm input + pull-up --- */
-    /* Đăng ký callback khi setup: Driver_GPIO0.Setup sẽ đăng ký callback vào PORT driver */
-    res = Driver_GPIO0.SetPullResistor(BUTTON1, ARM_GPIO_PULL_UP);
-    if (res != ARM_DRIVER_OK) { while (1) { __asm volatile("wfi"); } }
-
-    res = Driver_GPIO0.SetPullResistor(BUTTON2, ARM_GPIO_PULL_UP);
-    if (res != ARM_DRIVER_OK) { while (1) { __asm volatile("wfi"); } }
-
-    /* Setup pin: truyền callback Button_Event (được định nghĩa trong driver_gpio.c) */
-    res = Driver_GPIO0.Setup(BUTTON1, Button_Event);
-    if (res != ARM_DRIVER_OK) { while (1) { __asm volatile("wfi"); } }
-
-    res = Driver_GPIO0.Setup(BUTTON2, Button_Event);
-    if (res != ARM_DRIVER_OK) { while (1) { __asm volatile("wfi"); } }
-
-    /* Chọn trigger interrupt: falling edge (khi dùng pull-up, nhấn nút kéo xuống 0) */
-    res = Driver_GPIO0.SetEventTrigger(BUTTON1, ARM_GPIO_TRIGGER_FALLING_EDGE);
-    if (res != ARM_DRIVER_OK) { while (1) { __asm volatile("wfi"); } }
-
-    res = Driver_GPIO0.SetEventTrigger(BUTTON2, ARM_GPIO_TRIGGER_FALLING_EDGE);
-    if (res != ARM_DRIVER_OK) { while (1) { __asm volatile("wfi"); } }
-
-    /* --- Vòng lặp chính --- */
-    for (;;) {
-        /* Ở đây không cần làm gì vì callback xử lý nhấn nút.
-           Thêm một hoạt động nền nhỏ để dễ debug (nháy LED đôi làm heartbeat) */
-
-        /* Nháy LED_RED nhanh để biết chương trình chạy (không can thiệp quá nhiều vào trạng thái do nút điều khiển) */
-        Driver_GPIO0.SetOutput(LED_RED, 1);
-        delay_ms(100);
-        Driver_GPIO0.SetOutput(LED_RED, 0);
-        delay_ms(900);
+    /* Infinite loop: MCU waits for interrupts */
+    while (1)
+    {
+        __asm("WFI");   /* Wait For Interrupt - low power standby */
     }
 
-    /* không bao giờ tới đây */
-    // return 0;
+    /* Code never reaches here */
+    return 0;
 }
