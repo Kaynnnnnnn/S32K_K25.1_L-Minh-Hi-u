@@ -1,91 +1,140 @@
-/* Copyright 2023 NXP */
-/* License: BSD 3-clause
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are met:
-    1. Redistributions of source code must retain the above copyright
-       notice, this list of conditions and the following disclaimer.
-    2. Redistributions in binary form must reproduce the above copyright
-       notice, this list of conditions and the following disclaimer in the
-       documentation and/or other materials provided with the distribution.
-    3. Neither the name of the copyright holder nor the
-       names of its contributors may be used to endorse or promote products
-       derived from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-   AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-   IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-   ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-   LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-   INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-   POSSIBILITY OF SUCH DAMAGE.
-*/
-
-/*
- * main implementation: use this 'C' sample to create your own application
- *
+/**
+ * @file    main.c
+ * @brief   Blink 3 LEDs on S32K144 every 3 seconds using SysTick-based delay.
+ * @details Dành cho project bare-metal không dùng SDK, dùng IP_xxx register.
  */
+
 #include "S32K144.h"
+#include <stdint.h>
 
-#include <stdio.h>
+/* ------------------------------------------------------------------------- */
+/* SysTick register definitions (bare-metal, không dùng CMSIS)              */
+/* ------------------------------------------------------------------------- */
+#define SYST_CSR   (*(volatile uint32_t*)0xE000E010U)   /* Control and Status Register */
+#define SYST_RVR   (*(volatile uint32_t*)0xE000E014U)   /* Reload Value Register */
+#define SYST_CVR   (*(volatile uint32_t*)0xE000E018U)   /* Current Value Register */
 
-#if defined (__ghs__)
-    #define __INTERRUPT_SVC  __interrupt
-    #define __NO_RETURN _Pragma("ghs nowarning 111")
-#elif defined (__ICCARM__)
-    #define __INTERRUPT_SVC  __svc
-    #define __NO_RETURN _Pragma("diag_suppress=Pe111")
-#elif defined (__GNUC__)
-    #define __INTERRUPT_SVC  __attribute__ ((interrupt ("SVC")))
-    #define __NO_RETURN
-#else
-    #define __INTERRUPT_SVC
-    #define __NO_RETURN
-#endif
+#define SYST_CSR_CLKSOURCE   (1UL << 2)
+#define SYST_CSR_TICKINT     (1UL << 1)
+#define SYST_CSR_ENABLE      (1UL << 0)
+#define SYST_MAX_RELOAD      (0xFFFFFFUL)              /* 24-bit counter */
 
-void delay (volatile int cycles)
+/* ------------------------------------------------------------------------- */
+/* Macros                                                                    */
+/* ------------------------------------------------------------------------- */
+#define LED0_PIN        (0U)
+#define LED1_PIN        (15U)
+#define LED2_PIN        (16U)
+
+#define LED_PORT        (IP_PTD)
+#define LED_PORT_CTRL   (IP_PORTD)
+
+#define DELAY_TIME_MS   (3000U)
+#define CORE_CLOCK_HZ   (48000000U)   /* Clock mặc định 48 MHz */
+
+
+/* ------------------------------------------------------------------------- */
+/* Global variables                                                          */
+/* ------------------------------------------------------------------------- */
+static volatile uint32_t g_msTickCounter = 0U;
+
+/* ------------------------------------------------------------------------- */
+/* Function Prototypes                                                       */
+/* ------------------------------------------------------------------------- */
+static void LED_Init(void);
+static void LED_ToggleAll(void);
+static void Delay_Init(uint32_t coreClockHz);
+static void Delay_ms(uint32_t delayMs);
+
+/* ------------------------------------------------------------------------- */
+/* SysTick Interrupt Handler                                                 */
+/* ------------------------------------------------------------------------- */
+void SysTick_Handler(void)
 {
-	while(cycles--);
+    g_msTickCounter++;
 }
 
-void blink(GPIO_Type * GPIOn, uint8_t u8PinNumber, uint32_t time)
+/* ------------------------------------------------------------------------- */
+/* Function Definitions                                                      */
+/* ------------------------------------------------------------------------- */
+static void LED_Init(void)
 {
-	GPIOn->PTOR |= 1 << u8PinNumber;
-	delay(time);
-
-	GPIOn->PTOR |= 1 << u8PinNumber;
-}
-
-int main(void) {
+    /* Bật clock cho PORTD */
     IP_PCC->PCCn[PCC_PORTD_INDEX] |= PCC_PCCn_CGC_MASK;
-    IP_PORTD->PCR[0] |= PORT_PCR_MUX(0xb001);
-    IP_PORTD->PCR[15] |= PORT_PCR_MUX(0xb001);
-    IP_PORTD->PCR[16] |= PORT_PCR_MUX(0xb001);
 
-    IP_PTD->PDDR |= 1<<0;
-    IP_PTD->PDDR |= 1<<15;
-    IP_PTD->PDDR |= 1<<16;
-    IP_PTD->PSOR |= 1<<0;
-    IP_PTD->PSOR |= 1<<15;
-    IP_PTD->PSOR |= 1<<16;
+    /* Cấu hình các chân LED là GPIO */
+    LED_PORT_CTRL->PCR[LED0_PIN] = PORT_PCR_MUX(1);
+    LED_PORT_CTRL->PCR[LED1_PIN] = PORT_PCR_MUX(1);
+    LED_PORT_CTRL->PCR[LED2_PIN] = PORT_PCR_MUX(1);
 
-    while(1)
-    {
-    	blink(IP_PTD, 0, 3000000);
+    /* Cấu hình hướng xuất */
+    LED_PORT->PDDR |= (1U << LED0_PIN) | (1U << LED1_PIN) | (1U << LED2_PIN);
 
-    	blink(IP_PTD, 15, 3000000);
-
-    	blink(IP_PTD, 16, 3000000);
-    }
-    /* to avoid the warning message for GHS and IAR: statement is unreachable*/
-    __NO_RETURN
-    return 0;
+    /* Tắt LED ban đầu */
+    LED_PORT->PSOR |= (1U << LED0_PIN) | (1U << LED1_PIN) | (1U << LED2_PIN);
 }
 
-__INTERRUPT_SVC void SVC_Handler() {
-//    accumulator += counter;
-//    printf("counter is 0x%08x, accumulator is 0x%08x\n", counter, accumulator);
+static void LED_ToggleAll(void)
+{
+    LED_PORT->PTOR |= (1U << LED0_PIN) | (1U << LED1_PIN) | (1U << LED2_PIN);
+}
+
+
+static inline uint32_t SysTick_Config(uint32_t ticks)
+{
+    if ((ticks - 1UL) > SYST_MAX_RELOAD)
+    {
+        return 1UL;   /* Giá trị quá lớn (SysTick chỉ 24 bit) */
+    }
+
+    SYST_RVR = ticks - 1UL;                                      /* Nạp giá trị đếm */
+    SYST_CVR = 0UL;                                              /* Reset current value */
+    SYST_CSR = SYST_CSR_CLKSOURCE | SYST_CSR_TICKINT | SYST_CSR_ENABLE;
+
+    return 0UL;  /* OK */
+}
+
+
+static void Delay_Init(uint32_t coreClockHz)
+{
+    /* Cấu hình SysTick mỗi 1 ms */
+    (void)SysTick_Config(coreClockHz / 1000U);
+}
+
+static void Delay_ms(uint32_t delayMs)
+{
+    uint32_t startTick = g_msTickCounter;
+    while ((g_msTickCounter - startTick) < delayMs)
+    {
+        /* busy wait */
+    }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Main                                                                      */
+/* ------------------------------------------------------------------------- */
+int main(void)
+{
+    LED_Init();
+    Delay_Init(CORE_CLOCK_HZ);
+
+    while (1)
+    {
+        /* RED */
+        LED_PORT->PCOR = (1U << LED0_PIN);   /* bật RED */
+        LED_PORT->PSOR = (1U << LED1_PIN) | (1U << LED2_PIN); /* tắt GREEN + BLUE */
+        Delay_ms(DELAY_TIME_MS);
+
+        /* GREEN */
+        LED_PORT->PCOR = (1U << LED1_PIN);   /* bật GREEN */
+        LED_PORT->PSOR = (1U << LED0_PIN) | (1U << LED2_PIN); /* tắt RED + BLUE */
+        Delay_ms(DELAY_TIME_MS);
+
+        /* BLUE */
+        LED_PORT->PCOR = (1U << LED2_PIN);   /* bật BLUE */
+        LED_PORT->PSOR = (1U << LED0_PIN) | (1U << LED1_PIN); /* tắt RED + GREEN */
+        Delay_ms(DELAY_TIME_MS);
+    }
+
+    return 0;
 }
